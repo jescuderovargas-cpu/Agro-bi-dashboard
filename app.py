@@ -53,12 +53,22 @@ if df_raw is not None:
     t_kg_e = df_op['pesonetoenviado'].sum()
     t_vta = df_op['venta_neta'].sum()
     t_com = df_op['importecompra'].sum()
-    t_alm = df_op[['estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo']].sum().sum()
+    
+    # Gastos Almacén
+    g_estruct = df_op['estruct'].sum()
+    g_m_obra = df_op['mano_obra'].sum()
+    g_envase = df_op['c_envase'].sum()
+    g_palet = df_op['c_palet'].sum()
+    g_bolsa = df_op['cbo'].sum()
+    t_g_almacen = g_estruct + g_m_obra + g_envase + g_palet + g_bolsa
+    
+    # Otros gastos (Portes y Comisiones)
     t_ope = df_op[['comision', 'porte_orig', 'porte_dest']].sum().sum()
-    beneficio_neto = t_vta - (t_com + t_alm + t_ope)
+    
+    beneficio_neto = t_vta - (t_com + t_g_almacen + t_ope)
     margen_kg = beneficio_neto / t_kg_e if t_kg_e > 0 else 0
 
-    # --- RESULTADO PRINCIPAL (ARRIBA DE TODO) ---
+    # --- RESULTADO PRINCIPAL ---
     st.markdown("### Rendimiento Económico Neto")
     kpi1, kpi2 = st.columns(2)
     kpi1.metric("Beneficio Neto Total", f"{form(beneficio_neto)} €")
@@ -71,14 +81,24 @@ if df_raw is not None:
         c1, c2, c3 = st.columns(3)
         c1.metric("Kilos Enviados", f"{form(t_kg_e, 0)} kg")
         sobrepeso = t_kg_e - df_op['pesonetovendido'].sum()
-        c2.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg")
-        c3.metric("Gastos Almacén", f"{form(t_alm)} €")
+        c2.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg", delta=f"{form((sobrepeso/t_kg_e*100) if t_kg_e>0 else 0, 2)}% s/env", delta_color="inverse")
+        c3.metric("Coste Almacén Total", f"{form(t_g_almacen)} €")
 
-        st.markdown("### Análisis de Precios")
+        st.markdown("### Precios Medios de Operación")
         p1, p2 = st.columns(2)
-        p1.metric("Precio Venta Medio", f"{form(t_vta/t_kg_e if t_kg_e>0 else 0)} €/kg")
-        p2.metric("Precio Compra Medio", f"{form(t_com/t_kg_e if t_kg_e>0 else 0)} €/kg")
+        p1.metric("Precio Venta Medio", f"{form(t_vta/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        p2.metric("Precio Compra Medio", f"{form(t_com/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
 
+        # --- DESGLOSE GASTOS DE ALMACÉN EN €/KG ---
+        st.markdown("### Desglose de Gastos de Almacén (€/kg)")
+        dg1, dg2, dg3, dg4, dg5 = st.columns(5)
+        dg1.metric("Estructura", f"{form(g_estruct/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg2.metric("Mano Obra", f"{form(g_m_obra/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg3.metric("Envase", f"{form(g_envase/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg4.metric("Palet", f"{form(g_palet/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg5.metric("Bolsa/Otros", f"{form(g_bolsa/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+
+        st.markdown("---")
         col_g1, col_g2 = st.columns(2)
         with col_g1:
             st.plotly_chart(px.bar(df_op.groupby('familia')['venta_neta'].sum().reset_index(), x='familia', y='venta_neta', title="Facturación por Familia", color_discrete_sequence=['#2E7D32']), use_container_width=True)
@@ -101,16 +121,31 @@ if df_raw is not None:
 
         if not df_seg_tir.empty:
             st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', title="Mermas por Familia", color='familia'), use_container_width=True)
-            st.dataframe(df_seg_tir[['fecha_semana', 'familia', 'cliente', 'articulo', 'pesonetovendido', 'venta_neta']], use_container_width=True)
         else:
             st.info("No hay datos de segundas o tirado con los filtros seleccionados.")
 
     with tabs[2]:
-        st.markdown("### Reclamaciones (Abonos)")
+        st.markdown("### Análisis de Reclamaciones (Abonos)")
         total_rr = df_reclamaciones['venta_neta'].sum()
         st.metric("Total Importe Reclamado", f"{form(total_rr)} €")
         
         if not df_reclamaciones.empty:
+            # --- TOP 5 CLIENTES QUE MÁS RECLAMAN ---
+            st.markdown("#### Top 5 Clientes por Volumen de Reclamación")
+            top_reclamaciones = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index()
+            # Como los valores son negativos, ordenamos de forma ascendente para ver los más negativos arriba
+            top_reclamaciones = top_reclamaciones.sort_values('venta_neta', ascending=True).head(5)
+            
+            fig_top = px.bar(top_reclamaciones, 
+                             x='venta_neta', 
+                             y='cliente', 
+                             orientation='h',
+                             title="Mayores Impactos Económicos por Reclamación",
+                             labels={'venta_neta': 'Importe Reclamado (€)', 'cliente': 'Cliente'},
+                             color_discrete_sequence=['#D32F2F'])
+            st.plotly_chart(fig_top, use_container_width=True)
+            
+            st.markdown("#### Detalle de Reclamaciones")
             st.dataframe(df_reclamaciones[['fecha_semana', 'familia', 'cliente', 'venta_neta']].sort_values('venta_neta'), use_container_width=True)
         else:
             st.info("No hay reclamaciones registradas en este periodo.")
