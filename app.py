@@ -45,6 +45,7 @@ if df_raw is not None:
     
     # Procesamiento de subconjuntos
     is_rr = df_f['alb_str'].str.contains("RR", case=False)
+    # Operativa normal (Solo primera calidad y clientes que no son "Tirado")
     df_op = df_f[~is_rr & ~df_f['articulo'].astype(str).str.contains("II", case=False) & ~df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
     df_reclamaciones = df_f[is_rr]
     df_seg_tir = df_f[df_f['articulo'].astype(str).str.contains("II", case=False) | df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
@@ -78,18 +79,22 @@ if df_raw is not None:
     tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
 
     with tabs[0]:
-        c1, c2, c3 = st.columns(3)
-        c1.metric("Kilos Enviados", f"{form(t_kg_e, 0)} kg")
+        # FILA DE VOLUMEN Y FACTURACIÓN
+        st.markdown("### Volumen y Facturación")
+        f1, f2, f3 = st.columns(3)
+        f1.metric("Facturación Total", f"{form(t_vta)} €")
+        f2.metric("Kilos Enviados", f"{form(t_kg_e, 0)} kg")
         sobrepeso = t_kg_e - df_op['pesonetovendido'].sum()
-        c2.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg", delta=f"{form((sobrepeso/t_kg_e*100) if t_kg_e>0 else 0, 2)}% s/env", delta_color="inverse")
-        c3.metric("Coste Almacén Total", f"{form(t_g_almacen)} €")
+        f3.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg", delta=f"{form((sobrepeso/t_kg_e*100) if t_kg_e>0 else 0, 2)}% s/env", delta_color="inverse")
 
+        # FILA DE PRECIOS MEDIOS
         st.markdown("### Precios Medios de Operación")
-        p1, p2 = st.columns(2)
+        p1, p2, p3 = st.columns(3)
         p1.metric("Precio Venta Medio", f"{form(t_vta/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         p2.metric("Precio Compra Medio", f"{form(t_com/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        p3.metric("Coste Almacén Total", f"{form(t_g_almacen)} €")
 
-        # --- DESGLOSE GASTOS DE ALMACÉN EN €/KG ---
+        # DESGLOSE GASTOS DE ALMACÉN EN €/KG
         st.markdown("### Desglose de Gastos de Almacén (€/kg)")
         dg1, dg2, dg3, dg4, dg5 = st.columns(5)
         dg1.metric("Estructura", f"{form(g_estruct/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
@@ -122,7 +127,7 @@ if df_raw is not None:
         if not df_seg_tir.empty:
             st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', title="Mermas por Familia", color='familia'), use_container_width=True)
         else:
-            st.info("No hay datos de segundas o tirado con los filtros seleccionados.")
+            st.info("No hay datos de segundas o tirado.")
 
     with tabs[2]:
         st.markdown("### Análisis de Reclamaciones (Abonos)")
@@ -130,25 +135,16 @@ if df_raw is not None:
         st.metric("Total Importe Reclamado", f"{form(total_rr)} €")
         
         if not df_reclamaciones.empty:
-            # --- TOP 5 CLIENTES QUE MÁS RECLAMAN ---
             st.markdown("#### Top 5 Clientes por Volumen de Reclamación")
             top_reclamaciones = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index()
-            # Como los valores son negativos, ordenamos de forma ascendente para ver los más negativos arriba
             top_reclamaciones = top_reclamaciones.sort_values('venta_neta', ascending=True).head(5)
             
-            fig_top = px.bar(top_reclamaciones, 
-                             x='venta_neta', 
-                             y='cliente', 
-                             orientation='h',
-                             title="Mayores Impactos Económicos por Reclamación",
-                             labels={'venta_neta': 'Importe Reclamado (€)', 'cliente': 'Cliente'},
-                             color_discrete_sequence=['#D32F2F'])
+            fig_top = px.bar(top_reclamaciones, x='venta_neta', y='cliente', orientation='h', title="Mayores Impactos por Reclamación", color_discrete_sequence=['#D32F2F'])
             st.plotly_chart(fig_top, use_container_width=True)
             
-            st.markdown("#### Detalle de Reclamaciones")
             st.dataframe(df_reclamaciones[['fecha_semana', 'familia', 'cliente', 'venta_neta']].sort_values('venta_neta'), use_container_width=True)
         else:
-            st.info("No hay reclamaciones registradas en este periodo.")
+            st.info("No hay reclamaciones registradas.")
 
 else:
     st.error("No se ha encontrado el archivo de datos.")
