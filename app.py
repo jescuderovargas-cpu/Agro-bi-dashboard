@@ -56,24 +56,20 @@ if df_raw is not None:
     t_com = df_op['importecompra'].sum()
     
     # Gastos Almacén
-    g_estruct = df_op['estruct'].sum()
-    g_m_obra = df_op['mano_obra'].sum()
-    g_envase = df_op['c_envase'].sum()
-    g_palet = df_op['c_palet'].sum()
-    g_bolsa = df_op['cbo'].sum()
-    t_g_almacen = g_estruct + g_m_obra + g_envase + g_palet + g_bolsa
+    g_cols = ['estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo']
+    t_g_almacen = df_op[g_cols].sum().sum()
     
     # Otros gastos (Portes y Comisiones)
     t_ope = df_op[['comision', 'porte_orig', 'porte_dest']].sum().sum()
     
     beneficio_neto = t_vta - (t_com + t_g_almacen + t_ope)
-    margen_kg = beneficio_neto / t_kg_e if t_kg_e > 0 else 0
+    margen_kg_global = beneficio_neto / t_kg_e if t_kg_e > 0 else 0
 
     # --- RESULTADO PRINCIPAL ---
     st.markdown("### Rendimiento Económico Neto")
     kpi1, kpi2 = st.columns(2)
     kpi1.metric("Beneficio Neto Total", f"{form(beneficio_neto)} €")
-    kpi2.metric("Margen Neto por KG", f"{form(margen_kg, 4)} €/kg")
+    kpi2.metric("Margen Neto por KG", f"{form(margen_kg_global, 4)} €/kg")
     st.markdown("---")
 
     tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
@@ -97,13 +93,36 @@ if df_raw is not None:
         # DESGLOSE GASTOS DE ALMACÉN EN €/KG
         st.markdown("### Desglose de Gastos de Almacén (€/kg)")
         dg1, dg2, dg3, dg4, dg5 = st.columns(5)
-        dg1.metric("Estructura", f"{form(g_estruct/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg2.metric("Mano Obra", f"{form(g_m_obra/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg3.metric("Envase", f"{form(g_envase/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg4.metric("Palet", f"{form(g_palet/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg5.metric("Bolsa/Otros", f"{form(g_bolsa/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg1.metric("Estructura", f"{form(df_op['estruct'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg2.metric("Mano Obra", f"{form(df_op['mano_obra'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg3.metric("Envase", f"{form(df_op['c_envase'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg4.metric("Palet", f"{form(df_op['c_palet'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg5.metric("Bolsa/Otros", f"{form(df_op['cbo'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
 
         st.markdown("---")
+        
+        # --- NUEVO GRÁFICO: EVOLUCIÓN MARGEN SEMANAL ---
+        st.markdown("### Evolución del Margen Neto Semanal (€/kg)")
+        
+        # Cálculo agrupado por semana
+        df_sem = df_op.groupby('fecha_semana').agg({
+            'pesonetoenviado': 'sum',
+            'venta_neta': 'sum',
+            'importecompra': 'sum',
+            'estruct': 'sum', 'mano_obra': 'sum', 'c_envase': 'sum', 'c_palet': 'sum', 'cbo': 'sum',
+            'comision': 'sum', 'porte_orig': 'sum', 'porte_dest': 'sum'
+        }).reset_index()
+        
+        df_sem['gastos_totales'] = df_sem[['importecompra', 'estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo', 'comision', 'porte_orig', 'porte_dest']].sum(axis=1)
+        df_sem['margen_neto_kg'] = (df_sem['venta_neta'] - df_sem['gastos_totales']) / df_sem['pesonetoenviado']
+        
+        fig_evol = px.line(df_sem, x='fecha_semana', y='margen_neto_kg', 
+                           title="Margen Neto Semanal (€/kg)",
+                           labels={'fecha_semana': 'Semana', 'margen_neto_kg': 'Margen (€/kg)'},
+                           markers=True, color_discrete_sequence=['#1B5E20'])
+        fig_evol.add_hline(y=margen_kg_global, line_dash="dash", annotation_text="Margen Medio", line_color="gray")
+        st.plotly_chart(fig_evol, use_container_width=True)
+
         col_g1, col_g2 = st.columns(2)
         with col_g1:
             st.plotly_chart(px.bar(df_op.groupby('familia')['venta_neta'].sum().reset_index(), x='familia', y='venta_neta', title="Facturación por Familia", color_discrete_sequence=['#2E7D32']), use_container_width=True)
