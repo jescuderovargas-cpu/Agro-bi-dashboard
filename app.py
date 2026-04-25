@@ -5,21 +5,20 @@ import os
 
 st.set_page_config(page_title="Gestión de Rentabilidad Agro", layout="wide")
 
-# --- ESTILO ACTUALIZADO (Colores más suaves) ---
+# --- ESTILO: NÚMEROS Y LETRAS COMO ANTES ---
 st.markdown("""
     <style>
-    /* Color de las métricas principales */
-    [data-testid="stMetricValue"] { color: #2E7D32 !important; font-size: 1.8rem !important; }
+    /* Volvemos al verde oscuro potente para las métricas */
+    [data-testid="stMetricValue"] { color: #1B5E20 !important; font-size: 1.8rem !important; font-weight: bold; }
     
-    /* Títulos de secciones */
-    h3 { color: #455A64; padding-bottom: 5px; font-size: 1.2rem !important; margin-top: 15px; border-bottom: 1px solid #CFD8DC; }
+    /* Títulos limpios sin barras laterales */
+    h3 { color: #333333; padding-bottom: 5px; font-size: 1.2rem !important; margin-top: 15px; }
     
-    /* Estilo de las pestañas (Tabs) */
-    .stTabs [aria-selected="true"] { background-color: #F1F8E9 !important; border-radius: 5px; color: #2E7D32 !important; font-weight: bold; }
+    /* Pestañas con el verde original */
+    .stTabs [aria-selected="true"] { background-color: #2E7D32 !important; color: white !important; border-radius: 5px; }
     
-    /* Suavizado de los widgets de la barra lateral (Filtros) */
-    .stMultiSelect div[role="listbox"] { background-color: #FAFAFA; border-radius: 8px; }
-    span[data-baseweb="tag"] { background-color: #E8F5E9 !important; color: #2E7D32 !important; border: 1px solid #C8E6C9 !important; }
+    /* Filtros laterales con tonos suaves para no saturar */
+    span[data-baseweb="tag"] { background-color: #f0f2f6 !important; color: #333 !important; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -38,11 +37,11 @@ def cargar_datos():
 df_raw = cargar_datos()
 
 if df_raw is not None:
-    # --- BARRA LATERAL (FILTROS CON TONOS SUAVES) ---
-    st.sidebar.markdown("### Configuración de Vista")
-    sel_sem = st.sidebar.multiselect("Semanas de Campaña", sorted(df_raw['fecha_semana'].unique()), default=sorted(df_raw['fecha_semana'].unique()))
-    sel_fam = st.sidebar.multiselect("Familias de Producto", sorted(df_raw['familia'].unique()), default=sorted(df_raw['familia'].unique()))
-    sel_cli = st.sidebar.multiselect("Cartera de Clientes", sorted(df_raw['cliente'].unique()), default=sorted(df_raw['cliente'].unique()))
+    # --- FILTROS ---
+    st.sidebar.header("CONFIGURACIÓN")
+    sel_sem = st.sidebar.multiselect("Semanas", sorted(df_raw['fecha_semana'].unique()), default=sorted(df_raw['fecha_semana'].unique()))
+    sel_fam = st.sidebar.multiselect("Familias", sorted(df_raw['familia'].unique()), default=sorted(df_raw['familia'].unique()))
+    sel_cli = st.sidebar.multiselect("Clientes", sorted(df_raw['cliente'].unique()), default=sorted(df_raw['cliente'].unique()))
 
     # Aplicación de filtros
     df_f = df_raw.copy()
@@ -66,7 +65,7 @@ if df_raw is not None:
     beneficio_neto = t_vta - (t_com + t_g_almacen + t_ope)
     margen_kg_global = beneficio_neto / t_kg_e if t_kg_e > 0 else 0
 
-    # --- ENCABEZADO ---
+    # --- RESULTADO PRINCIPAL ---
     st.markdown("### Rendimiento Económico Neto")
     kpi1, kpi2 = st.columns(2)
     kpi1.metric("Beneficio Neto Total", f"{form(beneficio_neto)} €")
@@ -98,6 +97,8 @@ if df_raw is not None:
         dg5.metric("Bolsa/Otros", f"{form(df_op['cbo'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
 
         st.markdown("---")
+        
+        # --- GRÁFICO 1: EVOLUCIÓN (Línea Azul profesional) ---
         st.markdown("### Evolución del Margen Neto Semanal (€/kg)")
         df_sem = df_op.groupby('fecha_semana').agg({
             'pesonetoenviado': 'sum', 'venta_neta': 'sum', 'importecompra': 'sum',
@@ -107,16 +108,28 @@ if df_raw is not None:
         df_sem['gastos_totales'] = df_sem[['importecompra', 'estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo', 'comision', 'porte_orig', 'porte_dest']].sum(axis=1)
         df_sem['margen_neto_kg'] = (df_sem['venta_neta'] - df_sem['gastos_totales']) / df_sem['pesonetoenviado']
         
-        fig_evol = px.line(df_sem, x='fecha_semana', y='margen_neto_kg', markers=True, color_discrete_sequence=['#43A047'])
-        fig_evol.update_layout(yaxis_tickformat='.2f', margin=dict(l=0, r=0, t=30, b=0), height=350)
-        fig_evol.add_hline(y=margen_kg_global, line_dash="dash", line_color="#90A4AE")
+        fig_evol = px.line(df_sem, x='fecha_semana', y='margen_neto_kg', markers=True, color_discrete_sequence=['#0D47A1'])
+        fig_evol.update_layout(yaxis_tickformat='.2f')
+        fig_evol.add_hline(y=margen_kg_global, line_dash="dash", line_color="gray")
         st.plotly_chart(fig_evol, use_container_width=True)
 
+        # --- GRÁFICOS 2 Y 3: COLORES DISTINTOS POR CATEGORÍA ---
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            st.plotly_chart(px.bar(df_op.groupby('familia')['venta_neta'].sum().reset_index(), x='familia', y='venta_neta', color_discrete_sequence=['#66BB6A'], title="Ventas por Familia"), use_container_width=True)
+            # Gráfico de barras con colores variados por familia
+            fig_bar = px.bar(df_op.groupby('familia')['venta_neta'].sum().reset_index(), 
+                             x='familia', y='venta_neta', 
+                             color='familia', 
+                             title="Ventas por Familia",
+                             color_discrete_sequence=px.colors.qualitative.Safe)
+            st.plotly_chart(fig_bar, use_container_width=True)
         with col_g2:
-            st.plotly_chart(px.pie(df_op, values='pesonetovendido', names='familia', hole=0.4, color_discrete_sequence=px.colors.sequential.Greens_r, title="Volumen por Familia"), use_container_width=True)
+            # Gráfico de tarta con gama de colores distintos
+            fig_pie = px.pie(df_op, values='pesonetovendido', names='familia', 
+                             title="Volumen por Familia", 
+                             hole=0.4,
+                             color_discrete_sequence=px.colors.qualitative.Pastel)
+            st.plotly_chart(fig_pie, use_container_width=True)
 
         with st.expander("VER DETALLE OPERATIVO"):
             st.dataframe(df_op[['fecha_semana', 'familia', 'cliente', 'articulo', 'pesonetovendido', 'venta_neta']], use_container_width=True)
@@ -129,15 +142,23 @@ if df_raw is not None:
         s1.metric("KG Segundas (II)", f"{form(df_seg_tir[mask_seg]['pesonetovendido'].sum(), 0)} kg")
         s2.metric("KG Tirado", f"{form(df_seg_tir[mask_tir]['pesonetovendido'].sum(), 0)} kg")
         if not df_seg_tir.empty:
-            st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', color_discrete_sequence=['#81C784']), use_container_width=True)
+            # Gráfico de mermas con colores vivos
+            st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), 
+                                   x='familia', y='pesonetovendido', 
+                                   color='familia',
+                                   color_discrete_sequence=px.colors.qualitative.Vivid,
+                                   title="Mermas por Familia"), use_container_width=True)
 
     with tabs[2]:
         st.markdown("### Reclamaciones y Abonos")
         st.metric("Pérdida por Reclamaciones", f"{form(df_reclamaciones['venta_neta'].sum())} €")
         if not df_reclamaciones.empty:
             top_r = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index().sort_values('venta_neta').head(5)
-            # Rojo muy suave para el gráfico de pérdidas
-            st.plotly_chart(px.bar(top_r, x='venta_neta', y='cliente', orientation='h', color_discrete_sequence=['#FFAB91'], title="Top 5 Impacto por Cliente"), use_container_width=True)
+            # Rojo para reclamaciones pero con escala
+            st.plotly_chart(px.bar(top_r, x='venta_neta', y='cliente', orientation='h', 
+                                   color='cliente',
+                                   color_discrete_sequence=px.colors.sequential.Reds_r,
+                                   title="Top 5 Impacto Económico por Cliente"), use_container_width=True)
             st.dataframe(df_reclamaciones[['fecha_semana', 'familia', 'cliente', 'venta_neta']], use_container_width=True)
 else:
     st.error("Error al cargar datos.")
