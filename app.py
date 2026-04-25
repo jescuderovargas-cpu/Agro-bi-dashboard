@@ -45,7 +45,6 @@ if df_raw is not None:
     
     # Procesamiento de subconjuntos
     is_rr = df_f['alb_str'].str.contains("RR", case=False)
-    # Operativa normal (Solo primera calidad y clientes que no son "Tirado")
     df_op = df_f[~is_rr & ~df_f['articulo'].astype(str).str.contains("II", case=False) & ~df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
     df_reclamaciones = df_f[is_rr]
     df_seg_tir = df_f[df_f['articulo'].astype(str).str.contains("II", case=False) | df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
@@ -54,12 +53,8 @@ if df_raw is not None:
     t_kg_e = df_op['pesonetoenviado'].sum()
     t_vta = df_op['venta_neta'].sum()
     t_com = df_op['importecompra'].sum()
-    
-    # Gastos Almacén
     g_cols = ['estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo']
     t_g_almacen = df_op[g_cols].sum().sum()
-    
-    # Otros gastos (Portes y Comisiones)
     t_ope = df_op[['comision', 'porte_orig', 'porte_dest']].sum().sum()
     
     beneficio_neto = t_vta - (t_com + t_g_almacen + t_ope)
@@ -75,7 +70,6 @@ if df_raw is not None:
     tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
 
     with tabs[0]:
-        # FILA DE VOLUMEN Y FACTURACIÓN
         st.markdown("### Volumen y Facturación")
         f1, f2, f3 = st.columns(3)
         f1.metric("Facturación Total", f"{form(t_vta)} €")
@@ -83,14 +77,12 @@ if df_raw is not None:
         sobrepeso = t_kg_e - df_op['pesonetovendido'].sum()
         f3.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg", delta=f"{form((sobrepeso/t_kg_e*100) if t_kg_e>0 else 0, 2)}% s/env", delta_color="inverse")
 
-        # FILA DE PRECIOS MEDIOS
         st.markdown("### Precios Medios de Operación")
         p1, p2, p3 = st.columns(3)
         p1.metric("Precio Venta Medio", f"{form(t_vta/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         p2.metric("Precio Compra Medio", f"{form(t_com/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         p3.metric("Coste Almacén Total", f"{form(t_g_almacen)} €")
 
-        # DESGLOSE GASTOS DE ALMACÉN EN €/KG
         st.markdown("### Desglose de Gastos de Almacén (€/kg)")
         dg1, dg2, dg3, dg4, dg5 = st.columns(5)
         dg1.metric("Estructura", f"{form(df_op['estruct'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
@@ -101,14 +93,11 @@ if df_raw is not None:
 
         st.markdown("---")
         
-        # --- NUEVO GRÁFICO: EVOLUCIÓN MARGEN SEMANAL ---
+        # --- GRÁFICO: EVOLUCIÓN MARGEN SEMANAL (AJUSTADO A 2 DECIMALES) ---
         st.markdown("### Evolución del Margen Neto Semanal (€/kg)")
         
-        # Cálculo agrupado por semana
         df_sem = df_op.groupby('fecha_semana').agg({
-            'pesonetoenviado': 'sum',
-            'venta_neta': 'sum',
-            'importecompra': 'sum',
+            'pesonetoenviado': 'sum', 'venta_neta': 'sum', 'importecompra': 'sum',
             'estruct': 'sum', 'mano_obra': 'sum', 'c_envase': 'sum', 'c_palet': 'sum', 'cbo': 'sum',
             'comision': 'sum', 'porte_orig': 'sum', 'porte_dest': 'sum'
         }).reset_index()
@@ -120,7 +109,12 @@ if df_raw is not None:
                            title="Margen Neto Semanal (€/kg)",
                            labels={'fecha_semana': 'Semana', 'margen_neto_kg': 'Margen (€/kg)'},
                            markers=True, color_discrete_sequence=['#1B5E20'])
-        fig_evol.add_hline(y=margen_kg_global, line_dash="dash", annotation_text="Margen Medio", line_color="gray")
+        
+        # Forzar 2 decimales en el eje Y y en los tooltips
+        fig_evol.update_layout(yaxis_tickformat='.2f')
+        fig_evol.update_traces(hovertemplate='Semana: %{x}<br>Margen: %{y:.2f} €/kg')
+        
+        fig_evol.add_hline(y=margen_kg_global, line_dash="dash", annotation_text=f"Media: {margen_kg_global:.2f}", line_color="gray")
         st.plotly_chart(fig_evol, use_container_width=True)
 
         col_g1, col_g2 = st.columns(2)
@@ -136,34 +130,22 @@ if df_raw is not None:
         st.markdown("### Análisis de Segundas y Tirado")
         mask_seg = df_seg_tir['articulo'].astype(str).str.contains("II", case=False)
         mask_tir = df_seg_tir['cliente'].astype(str).str.contains("Tirado", case=False)
-        
         s1, s2 = st.columns(2)
         kg_seg = df_seg_tir[mask_seg]['pesonetovendido'].sum()
         kg_tir = df_seg_tir[mask_tir]['pesonetovendido'].sum()
         s1.metric("KG Segundas (II)", f"{form(kg_seg, 0)} kg")
         s2.metric("KG Tirado", f"{form(kg_tir, 0)} kg")
-
         if not df_seg_tir.empty:
             st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', title="Mermas por Familia", color='familia'), use_container_width=True)
-        else:
-            st.info("No hay datos de segundas o tirado.")
 
     with tabs[2]:
         st.markdown("### Análisis de Reclamaciones (Abonos)")
         total_rr = df_reclamaciones['venta_neta'].sum()
         st.metric("Total Importe Reclamado", f"{form(total_rr)} €")
-        
         if not df_reclamaciones.empty:
-            st.markdown("#### Top 5 Clientes por Volumen de Reclamación")
-            top_reclamaciones = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index()
-            top_reclamaciones = top_reclamaciones.sort_values('venta_neta', ascending=True).head(5)
-            
+            top_reclamaciones = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index().sort_values('venta_neta', ascending=True).head(5)
             fig_top = px.bar(top_reclamaciones, x='venta_neta', y='cliente', orientation='h', title="Mayores Impactos por Reclamación", color_discrete_sequence=['#D32F2F'])
             st.plotly_chart(fig_top, use_container_width=True)
-            
             st.dataframe(df_reclamaciones[['fecha_semana', 'familia', 'cliente', 'venta_neta']].sort_values('venta_neta'), use_container_width=True)
-        else:
-            st.info("No hay reclamaciones registradas.")
-
 else:
     st.error("No se ha encontrado el archivo de datos.")
