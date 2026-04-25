@@ -89,7 +89,6 @@ if df_raw is not None:
         dg2.metric("Mano Obra", f"{form(df_op['mano_obra'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         dg3.metric("Envase", f"{form(df_op['c_envase'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         dg4.metric("Palet", f"{form(df_op['c_palet'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg5.metric("Bolsa/Otros", f"{form(df_op['cbo'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
 
         st.markdown("---")
         
