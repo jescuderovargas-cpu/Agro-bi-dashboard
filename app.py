@@ -3,15 +3,14 @@ import pandas as pd
 import plotly.express as px
 import os
 
-st.set_page_config(page_title="Demo BI - Gestión Agrícola", layout="wide")
+st.set_page_config(page_title="Gestión de Rentabilidad Agro", layout="wide")
 
-# --- ESTILO CORPORATIVO ---
+# --- ESTILO LIMPIO ---
 st.markdown("""
     <style>
-    [data-testid="stMetricValue"] { color: #2E7D32 !important; font-size: 1.5rem !important; }
-    h3 { color: #333333; background-color: #f8f9fa; padding: 10px; border-radius: 5px; font-size: 1.1rem !important; margin-top: 20px; border-left: 5px solid #2E7D32; }
-    .stTabs [aria-selected="true"] { background-color: #2E7D32 !important; color: white !important; }
-    .metric-container { background-color: #ffffff; padding: 15px; border-radius: 10px; border: 1px solid #eeeeee; }
+    [data-testid="stMetricValue"] { color: #1B5E20 !important; font-size: 1.8rem !important; }
+    h3 { color: #333333; padding-bottom: 5px; font-size: 1.2rem !important; margin-top: 15px; }
+    .stTabs [aria-selected="true"] { background-color: #f0f2f6 !important; border-radius: 5px; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -30,104 +29,91 @@ def cargar_datos():
 df_raw = cargar_datos()
 
 if df_raw is not None:
-    # --- FILTROS LATERALES ---
-    st.sidebar.header("FILTROS DE CAMPAÑA")
-    op_sem = sorted(df_raw['fecha_semana'].unique())
-    sel_sem = st.sidebar.multiselect("Semanas", op_sem, default=op_sem)
-    op_fam = sorted(df_raw['familia'].unique())
-    sel_fam = st.sidebar.multiselect("Familias", op_fam, default=op_fam)
-    op_cli = sorted(df_raw['cliente'].unique())
-    sel_cli = st.sidebar.multiselect("Clientes", op_cli, default=op_cli)
+    # --- FILTROS ---
+    st.sidebar.header("FILTROS")
+    sel_sem = st.sidebar.multiselect("Semanas", sorted(df_raw['fecha_semana'].unique()), default=sorted(df_raw['fecha_semana'].unique()))
+    sel_fam = st.sidebar.multiselect("Familias", sorted(df_raw['familia'].unique()), default=sorted(df_raw['familia'].unique()))
+    sel_cli = st.sidebar.multiselect("Clientes", sorted(df_raw['cliente'].unique()), default=sorted(df_raw['cliente'].unique()))
 
-    # Aplicar filtros
+    # Aplicación de filtros
     df_f = df_raw.copy()
     if sel_sem: df_f = df_f[df_f['fecha_semana'].isin(sel_sem)]
     if sel_fam: df_f = df_f[df_f['familia'].isin(sel_fam)]
     if sel_cli: df_f = df_f[df_f['cliente'].isin(sel_cli)]
     
     df_f['alb_str'] = df_f['alb'].astype(str)
-    df_seg_tir_raw = df_f.copy()
     
-    # Datos para Rentabilidad (Limpieza de calidad)
+    # Procesamiento de subconjuntos
     is_rr = df_f['alb_str'].str.contains("RR", case=False)
-    df_clean = df_f[is_rr | ~df_f['articulo'].astype(str).str.contains("II", case=False)]
-    df_clean = df_clean[~df_clean['cliente'].astype(str).str.contains("Tirado", case=False)]
-    df_op = df_clean[~is_rr]
-    df_special = df_clean[is_rr]
+    df_op = df_f[~is_rr & ~df_f['articulo'].astype(str).str.contains("II", case=False) & ~df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
+    df_reclamaciones = df_f[is_rr]
+    df_seg_tir = df_f[df_f['articulo'].astype(str).str.contains("II", case=False) | df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
 
-    # --- CÁLCULOS ---
+    # Cálculos globales
     t_kg_e = df_op['pesonetoenviado'].sum()
-    t_kg_v = df_op['pesonetovendido'].sum()
     t_vta = df_op['venta_neta'].sum()
     t_com = df_op['importecompra'].sum()
-    
-    # Gastos Almacén
-    g_estruct = df_op['estruct'].sum()
-    g_m_obra = df_op['mano_obra'].sum()
-    g_envase = df_op['c_envase'].sum()
-    g_palet = df_op['c_palet'].sum()
-    g_bolsa = df_op['cbo'].sum()
-    t_g_almacen = g_estruct + g_m_obra + g_envase + g_palet + g_bolsa
-    
-    # Gastos Operativos
+    t_alm = df_op[['estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo']].sum().sum()
     t_ope = df_op[['comision', 'porte_orig', 'porte_dest']].sum().sum()
-    
-    beneficio_neto = t_vta - (t_com + t_g_almacen + t_ope)
+    beneficio_neto = t_vta - (t_com + t_alm + t_ope)
+    margen_kg = beneficio_neto / t_kg_e if t_kg_e > 0 else 0
+
+    # --- RESULTADO PRINCIPAL (ARRIBA DE TODO) ---
+    st.markdown("### Rendimiento Económico Neto")
+    kpi1, kpi2 = st.columns(2)
+    kpi1.metric("Beneficio Neto Total", f"{form(beneficio_neto)} €")
+    kpi2.metric("Margen Neto por KG", f"{form(margen_kg, 4)} €/kg")
+    st.markdown("---")
 
     tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
 
     with tabs[0]:
-        # 1. VOLUMEN Y SOBREPESOS
-        st.markdown("### Volumen y Sobrepesos")
         c1, c2, c3 = st.columns(3)
-        c1.metric("KG Enviados", f"{form(t_kg_e, 0)} kg")
-        c2.metric("KG Vendidos", f"{form(t_kg_v, 0)} kg")
-        sobrepeso = t_kg_e - t_kg_v
-        porc_sobrepeso = (sobrepeso / t_kg_e * 100) if t_kg_e > 0 else 0
-        c3.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg", delta=f"{form(porc_sobrepeso, 2)}%", delta_color="inverse")
+        c1.metric("Kilos Enviados", f"{form(t_kg_e, 0)} kg")
+        sobrepeso = t_kg_e - df_op['pesonetovendido'].sum()
+        c2.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg")
+        c3.metric("Gastos Almacén", f"{form(t_alm)} €")
 
-        # 2. PRECIOS MEDIOS Y RENTABILIDAD
-        st.markdown("### Precios Medios y Rentabilidad")
-        p1, p2, p3 = st.columns(3)
-        # Precios medios calculados sobre KG Enviados para ver impacto real
-        p_vta_medio = t_vta / t_kg_e if t_kg_e > 0 else 0
-        p_com_medio = t_com / t_kg_e if t_kg_e > 0 else 0
-        p1.metric("P. Venta Medio", f"{form(p_vta_medio, 2)} €/kg")
-        p2.metric("P. Compra Medio", f"{form(p_com_medio, 2)} €/kg")
-        p3.metric("Margen Neto Total", f"{form(beneficio_neto)} €")
+        st.markdown("### Análisis de Precios")
+        p1, p2 = st.columns(2)
+        p1.metric("Precio Venta Medio", f"{form(t_vta/t_kg_e if t_kg_e>0 else 0)} €/kg")
+        p2.metric("Precio Compra Medio", f"{form(t_com/t_kg_e if t_kg_e>0 else 0)} €/kg")
 
-        # 3. DESGLOSE GASTOS DE ALMACÉN
-        st.markdown(f"### Gastos de Almacén (Total: {form(t_g_almacen)} €)")
-        g1, g2, g3, g4, g5 = st.columns(5)
-        # Mostramos el coste por kilo de cada partida
-        g1.metric("Estructura", f"{form(g_estruct/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        g2.metric("Mano Obra", f"{form(g_m_obra/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        g3.metric("Envase", f"{form(g_envase/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        g4.metric("Palet", f"{form(g_palet/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        g5.metric("Bolsa/Otros", f"{form(g_bolsa/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-
-        # GRÁFICOS
-        st.markdown("---")
         col_g1, col_g2 = st.columns(2)
         with col_g1:
-            st.plotly_chart(px.bar(df_op.groupby('familia')['venta_neta'].sum().reset_index(), 
-                                   x='familia', y='venta_neta', title="Ventas Totales por Familia", color_discrete_sequence=['#2E7D32']), use_container_width=True)
+            st.plotly_chart(px.bar(df_op.groupby('familia')['venta_neta'].sum().reset_index(), x='familia', y='venta_neta', title="Facturación por Familia", color_discrete_sequence=['#2E7D32']), use_container_width=True)
         with col_g2:
-            st.plotly_chart(px.pie(df_op, values='pesonetovendido', names='familia', title="Distribución de Volumen", hole=0.4), use_container_width=True)
+            st.plotly_chart(px.pie(df_op, values='pesonetovendido', names='familia', title="Volumen por Familia", hole=0.4), use_container_width=True)
 
-        # TABLA DE DATOS
-        with st.expander("VER DETALLE DE OPERACIONES"):
-            st.dataframe(df_op[['fecha_semana', 'familia', 'cliente', 'pesonetoenviado', 'pesonetovendido', 'venta_neta']], use_container_width=True)
+        with st.expander("VER TABLA DE DATOS"):
+            st.dataframe(df_op[['fecha_semana', 'familia', 'cliente', 'articulo', 'pesonetovendido', 'venta_neta']], use_container_width=True)
 
     with tabs[1]:
-        # (Contenido de Segundas y Tirado igual al anterior...)
-        st.markdown("### Control de Segundas y Tirado")
-        # ... (código previo)
-        pass
+        st.markdown("### Análisis de Segundas y Tirado")
+        mask_seg = df_seg_tir['articulo'].astype(str).str.contains("II", case=False)
+        mask_tir = df_seg_tir['cliente'].astype(str).str.contains("Tirado", case=False)
+        
+        s1, s2 = st.columns(2)
+        kg_seg = df_seg_tir[mask_seg]['pesonetovendido'].sum()
+        kg_tir = df_seg_tir[mask_tir]['pesonetovendido'].sum()
+        s1.metric("KG Segundas (II)", f"{form(kg_seg, 0)} kg")
+        s2.metric("KG Tirado", f"{form(kg_tir, 0)} kg")
+
+        if not df_seg_tir.empty:
+            st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', title="Mermas por Familia", color='familia'), use_container_width=True)
+            st.dataframe(df_seg_tir[['fecha_semana', 'familia', 'cliente', 'articulo', 'pesonetovendido', 'venta_neta']], use_container_width=True)
+        else:
+            st.info("No hay datos de segundas o tirado con los filtros seleccionados.")
 
     with tabs[2]:
-        # (Contenido de Reclamaciones igual al anterior...)
-        pass
+        st.markdown("### Reclamaciones (Abonos)")
+        total_rr = df_reclamaciones['venta_neta'].sum()
+        st.metric("Total Importe Reclamado", f"{form(total_rr)} €")
+        
+        if not df_reclamaciones.empty:
+            st.dataframe(df_reclamaciones[['fecha_semana', 'familia', 'cliente', 'venta_neta']].sort_values('venta_neta'), use_container_width=True)
+        else:
+            st.info("No hay reclamaciones registradas en este periodo.")
 
 else:
-    st.error("Archivo 'datos_acl.xlsx' no encontrado.")
+    st.error("No se ha encontrado el archivo de datos.")
