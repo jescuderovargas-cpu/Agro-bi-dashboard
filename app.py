@@ -114,7 +114,7 @@ if df_raw is not None:
         dg2.metric("Mano Obra", f"{form(g_mo/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         dg3.metric("Envase", f"{form(g_env/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         dg4.metric("Palet", f"{form(g_pal/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg5.metric("Bolsa/Otros", f"{form(g_cbo/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg5.metric("Otros", f"{form(g_cbo/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
 
         st.markdown("---")
         st.markdown("### Evolución del Margen Semanal")
@@ -136,7 +136,7 @@ if df_raw is not None:
             st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', color='familia'), use_container_width=True)
 
     with tabs[2]:
-        st.markdown("### Reclamaciones (RR)")
+        st.markdown("### Reclamaciones)")
         st.metric("Importe Reclamado", f"{form(df_reclamaciones['venta_neta'].sum())} €")
         if not df_reclamaciones.empty:
             df_rec_cli = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index().sort_values('venta_neta', ascending=False)
