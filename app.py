@@ -109,12 +109,19 @@ if df_raw is not None:
     tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
 
     with tabs[0]:
-        st.markdown("### Precios Medios y Volumen")
-        pm1, pm2, pm3 = st.columns(3)
+        # NUEVA SECCIÓN SOLICITADA
+        st.markdown("### Volumen y Facturación")
+        vf1, vf2, vf3, vf4 = st.columns(4)
+        vf1.metric("Facturación", f"{form(t_vta)} €")
+        vf2.metric("Kg Vendidos", f"{form(t_kg_v, 0)} kg")
+        vf3.metric("Kg Enviados", f"{form(t_kg_e, 0)} kg")
+        sobrepeso = t_kg_e - t_kg_v
+        vf4.metric("Mermas (Sobrepeso)", f"{form(sobrepeso, 0)} kg", delta=f"{form((sobrepeso/t_kg_e*100) if t_kg_e>0 else 0, 2)}% s/env", delta_color="inverse")
+
+        st.markdown("### Precios Medios (€/kg)")
+        pm1, pm2 = st.columns(2)
         pm1.metric("P. Medio Venta", f"{form(pm_vta, 3)} €/kg")
         pm2.metric("P. Medio Compra", f"{form(pm_com, 3)} €/kg")
-        sobrepeso = t_kg_e - t_kg_v
-        pm3.metric("Sobrepeso (Merma)", f"{form(sobrepeso, 0)} kg", delta=f"{form((sobrepeso/t_kg_e*100) if t_kg_e>0 else 0, 2)}% s/env", delta_color="inverse")
 
         # Título dinámico con el total de gastos de almacén
         st.markdown(f"### Desglose Gastos Almacén ({form(ratio_g_almacen, 3)} €/kg)")
