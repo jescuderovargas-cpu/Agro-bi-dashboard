@@ -111,7 +111,7 @@ if df_raw is not None:
     kpi2.metric("Margen Neto Final", f"{form(margen_kg_global, 4)} €/kg")
     st.markdown("---")
 
-    tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
+    tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y DESTRÍO", "RECLAMACIONES"])
 
     with tabs[0]:
         st.markdown("### Volumen y Facturación")
@@ -133,7 +133,7 @@ if df_raw is not None:
         dg2.metric("Mano Obra", f"{form(df_op['mano_obra'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         dg3.metric("Envase", f"{form(df_op['c_envase'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
         dg4.metric("Palet", f"{form(df_op['c_palet'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
-        dg5.metric("Bolsa/Otros", f"{form(df_op['cbo'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
+        dg5.metric("Otros", f"{form(df_op['cbo'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
 
         st.markdown("---")
         st.markdown("### Evolución del Margen Semanal")
@@ -150,7 +150,7 @@ if df_raw is not None:
         st.plotly_chart(fig_evol, use_container_width=True)
 
     with tabs[1]:
-        st.markdown("### Análisis de Mermas")
+        st.markdown("### Análisis")
         s1, s2 = st.columns(2)
         k_seg = df_seg_tir[df_seg_tir['articulo'].astype(str).str.contains('II', case=False)]['pesonetovendido'].sum()
         k_tir = df_seg_tir[df_seg_tir['cliente'].astype(str).str.contains('Tirado', case=False)]['pesonetovendido'].sum()
