@@ -5,45 +5,43 @@ import os
 
 st.set_page_config(page_title="Gestión de Rentabilidad Agro", layout="wide")
 
-# --- ESTILO ACTUALIZADO: PESTAÑAS MÁS LIMPIAS Y SIN SOMBREADOS NEGROS ---
+# --- ESTILO MEJORADO: DISEÑO PLANO SIN BLOQUES OSCUROS (IDEAL MÓVIL) ---
 st.markdown("""
     <style>
-    /* Métricas principales en Negro Potente */
+    /* Métricas principales en Negro */
     [data-testid="stMetricValue"] { color: #000000 !important; font-size: 1.8rem !important; font-weight: bold; }
     [data-testid="stMetricLabel"] { color: #333333 !important; font-weight: 500; }
     
     /* Títulos en Negro */
     h3 { color: #000000; padding-bottom: 5px; font-size: 1.2rem !important; margin-top: 15px; font-weight: 700; }
 
-    /* --- ESTILO DE PESTAÑAS (TABS) MEJORADO --- */
-    /* Quitar el borde y el sombreado negro por defecto de Streamlit */
+    /* --- DISEÑO DE PESTAÑAS (TABS) TIPO UNDERLINE --- */
     .stTabs [data-baseweb="tab-list"] {
-        gap: 8px;
+        gap: 10px;
+        background-color: transparent !important;
     }
 
     .stTabs [data-baseweb="tab"] {
-        height: 40px;
-        white-space: pre-wrap;
-        background-color: #f8f9fb; /* Fondo gris muy suave para pestañas inactivas */
-        border-radius: 5px 5px 0px 0px;
-        color: #555555;
-        border: 1px solid #f0f2f6 !important;
+        height: 45px;
+        background-color: transparent !important;
+        border: none !important;
+        color: #666666 !important;
+        font-weight: 400;
         transition: all 0.2s ease;
     }
 
-    /* Pestaña seleccionada: Azul Grisáceo Profesional (No negro) */
+    /* Pestaña seleccionada: Texto en verde y línea inferior (Sin fondo oscuro) */
     .stTabs [aria-selected="true"] { 
-        background-color: #455A64 !important; 
-        color: white !important; 
-        border-radius: 5px 5px 0px 0px;
-        border: none !important;
-        box-shadow: none !important; /* Elimina sombras extrañas en móvil */
+        color: #2e7d32 !important; 
+        font-weight: 700 !important;
+        border-bottom: 3px solid #2e7d32 !important;
+        background-color: transparent !important;
     }
 
-    /* Color al pasar el ratón o tocar (hover/active) */
-    .stTabs [data-baseweb="tab"]:hover {
-        color: #455A64 !important;
-        background-color: #eceff1;
+    /* Quitar efectos de sombreado negro al tocar en móvil */
+    .stTabs [data-baseweb="tab"]:focus {
+        outline: none !important;
+        box-shadow: none !important;
     }
 
     /* Ajuste de filtros laterales */
@@ -128,7 +126,7 @@ if df_raw is not None:
         df_sem['gastos_totales'] = df_sem[['importecompra', 'estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo', 'comision', 'porte_orig', 'porte_dest']].sum(axis=1)
         df_sem['margen_neto_kg'] = (df_sem['venta_neta'] - df_sem['gastos_totales']) / df_sem['pesonetoenviado']
         
-        fig_evol = px.line(df_sem, x='fecha_semana', y='margen_neto_kg', markers=True, color_discrete_sequence=['#455A64'])
+        fig_evol = px.line(df_sem, x='fecha_semana', y='margen_neto_kg', markers=True, color_discrete_sequence=['#2e7d32'])
         fig_evol.update_layout(yaxis_tickformat='.2f')
         st.plotly_chart(fig_evol, use_container_width=True)
 
