@@ -68,7 +68,7 @@ if df_raw is not None:
     sel_fam = st.sidebar.multiselect("Familias", sorted(df_raw['familia'].unique()), default=sorted(df_raw['familia'].unique()))
     sel_cli = st.sidebar.multiselect("Clientes", sorted(df_raw['cliente'].unique()), default=sorted(df_raw['cliente'].unique()))
 
-    # Filtros
+    # Filtros base
     df_f = df_raw.copy()
     if sel_sem: df_f = df_f[df_f['fecha_semana'].isin(sel_sem)]
     if sel_fam: df_f = df_f[df_f['familia'].isin(sel_fam)]
@@ -76,12 +76,19 @@ if df_raw is not None:
     
     df_f['alb_str'] = df_f['alb'].astype(str)
     is_rr = df_f['alb_str'].str.contains("RR", case=False)
-    
-    df_op = df_f[~is_rr & ~df_f['articulo'].astype(str).str.contains("II", case=False) & ~df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
-    df_reclamaciones = df_f[is_rr]
-    df_seg_tir = df_f[df_f['articulo'].astype(str).str.contains("II", case=False) | df_f['cliente'].astype(str).str.contains("Tirado", case=False)]
+    is_tirado = df_f['cliente'].astype(str).str.contains("Tirado", case=False)
+    is_segunda = df_f['articulo'].astype(str).str.contains("II", case=False)
 
-    # Cálculos
+    # 1. Resumen Negocio (Operativo puro)
+    df_op = df_f[~is_rr & ~is_segunda & ~is_tirado]
+    
+    # 2. Segundas y Tirado
+    df_seg_tir = df_f[is_segunda | is_tirado]
+    
+    # 3. Reclamaciones (RR pero NUNCA el cliente Tirado)
+    df_reclamaciones = df_f[is_rr & ~is_tirado]
+
+    # Cálculos globales
     t_kg_e = df_op['pesonetoenviado'].sum()
     t_kg_v = df_op['pesonetovendido'].sum()
     t_vta = df_op['venta_neta'].sum()
@@ -150,27 +157,22 @@ if df_raw is not None:
         s1.metric("KG Segundas (II)", f"{form(k_seg, 0)} kg")
         s2.metric("KG Tirado", f"{form(k_tir, 0)} kg")
         
-        # Gráfico de distribución de mermas por familia
         if not df_seg_tir.empty:
             st.markdown("### Distribución de Mermas por Familia")
             df_mermas_fam = df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index()
             fig_mermas = px.bar(df_mermas_fam, x='familia', y='pesonetovendido', color='familia', 
-                               labels={'pesonetovendido': 'Kilos', 'familia': 'Familia'},
                                color_discrete_sequence=px.colors.qualitative.Prism)
             st.plotly_chart(fig_mermas, use_container_width=True)
 
     with tabs[2]:
-        st.markdown("### Reclamaciones y Abonos")
-        st.metric("Total Reclamado", f"{form(df_reclamaciones['venta_neta'].sum())} €")
+        st.markdown("### Reclamaciones y Abonos (Excluye Tirado)")
+        total_rec = df_reclamaciones['venta_neta'].sum()
+        st.metric("Total Reclamado", f"{form(total_rec)} €")
         
-        # Gráfico de reclamaciones por cliente
         if not df_reclamaciones.empty:
             st.markdown("### Impacto por Cliente")
-            df_rec_cli = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index()
-            # Ordenamos para mostrar los que más reclaman primero
-            df_rec_cli = df_rec_cli.sort_values('venta_neta', ascending=False)
+            df_rec_cli = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index().sort_values('venta_neta', ascending=False)
             fig_rec = px.bar(df_rec_cli, x='cliente', y='venta_neta', color='cliente',
-                            labels={'venta_neta': 'Importe Reclamado (€)', 'cliente': 'Cliente'},
                             color_discrete_sequence=px.colors.sequential.Reds_r)
             st.plotly_chart(fig_rec, use_container_width=True)
 
