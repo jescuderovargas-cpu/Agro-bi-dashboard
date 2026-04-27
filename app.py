@@ -5,7 +5,7 @@ import os
 
 st.set_page_config(page_title="Gestión de Rentabilidad Agro", layout="wide")
 
-# --- ESTILO: PESTAÑAS SUAVIZADAS Y NÚMEROS EN NEGRO ---
+# --- ESTILO ACTUALIZADO: PESTAÑAS MÁS LIMPIAS Y SIN SOMBREADOS NEGROS ---
 st.markdown("""
     <style>
     /* Métricas principales en Negro Potente */
@@ -15,19 +15,37 @@ st.markdown("""
     /* Títulos en Negro */
     h3 { color: #000000; padding-bottom: 5px; font-size: 1.2rem !important; margin-top: 15px; font-weight: 700; }
 
-    /* --- CAMBIO EN PESTAÑAS (TABS) --- */
-    /* Color de la pestaña seleccionada: Azul Grisáceo Profesional */
+    /* --- ESTILO DE PESTAÑAS (TABS) MEJORADO --- */
+    /* Quitar el borde y el sombreado negro por defecto de Streamlit */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+    }
+
+    .stTabs [data-baseweb="tab"] {
+        height: 40px;
+        white-space: pre-wrap;
+        background-color: #f8f9fb; /* Fondo gris muy suave para pestañas inactivas */
+        border-radius: 5px 5px 0px 0px;
+        color: #555555;
+        border: 1px solid #f0f2f6 !important;
+        transition: all 0.2s ease;
+    }
+
+    /* Pestaña seleccionada: Azul Grisáceo Profesional (No negro) */
     .stTabs [aria-selected="true"] { 
         background-color: #455A64 !important; 
         color: white !important; 
-        border-radius: 5px; 
+        border-radius: 5px 5px 0px 0px;
         border: none !important;
+        box-shadow: none !important; /* Elimina sombras extrañas en móvil */
     }
-    /* Color al pasar el ratón por encima de las pestañas */
+
+    /* Color al pasar el ratón o tocar (hover/active) */
     .stTabs [data-baseweb="tab"]:hover {
         color: #455A64 !important;
+        background-color: #eceff1;
     }
-    
+
     /* Ajuste de filtros laterales */
     .stMultiSelect label { color: #000000 !important; font-weight: bold; }
     </style>
