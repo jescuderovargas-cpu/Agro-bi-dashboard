@@ -30,7 +30,6 @@ def cargar_datos():
         df = pd.read_excel("datos_acl.xlsx")
         df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
         
-        # Limpieza forzada de columnas numéricas para evitar TypeErrors
         columnas_num = ['mano_obra', 'estruct', 'c_envase', 'c_palet', 'cbo', 'c_bo', 
                         'venta_neta', 'importecompra', 'pesonetoenviado', 'pesonetovendido',
                         'comision', 'porte_orig', 'porte_dest']
@@ -49,7 +48,6 @@ if df_raw is not None:
     sel_fam = st.sidebar.multiselect("Familias", sorted(df_raw['familia'].unique()), default=sorted(df_raw['familia'].unique()))
     sel_cli = st.sidebar.multiselect("Clientes", sorted(df_raw['cliente'].unique()), default=sorted(df_raw['cliente'].unique()))
 
-    # Filtro Dinámico Aplicado
     df_f = df_raw.copy()
     if sel_sem: df_f = df_f[df_f['fecha_semana'].isin(sel_sem)]
     if sel_fam: df_f = df_f[df_f['familia'].isin(sel_fam)]
@@ -60,18 +58,19 @@ if df_raw is not None:
     mask_tirado = df_f['cliente'].astype(str).str.contains("Tirado", case=False)
     mask_segunda = df_f['articulo'].astype(str).str.contains("II", case=False)
 
-    # Segmentación
     df_op = df_f[~mask_rr & ~mask_segunda & ~mask_tirado]
     df_seg_tir = df_f[mask_segunda | mask_tirado]
     df_reclamaciones = df_f[mask_rr & ~mask_tirado]
 
-    # --- CÁLCULOS SOBRE EL FILTRO ---
+    # --- CÁLCULOS ---
     t_kg_e = df_op['pesonetoenviado'].sum()
     t_kg_v = df_op['pesonetovendido'].sum()
     t_vta = df_op['venta_neta'].sum()
     t_com = df_op['importecompra'].sum()
     
-    # Gastos Almacén
+    mermas_kg = t_kg_e - t_kg_v
+    porcentaje_merma = (mermas_kg / t_kg_e * 100) if t_kg_e > 0 else 0
+
     g_mo = df_op['mano_obra'].sum()
     g_est = df_op['estruct'].sum()
     g_env = df_op['c_envase'].sum()
@@ -99,15 +98,20 @@ if df_raw is not None:
         vf1.metric("Facturación", f"{form(t_vta)} €")
         vf2.metric("Kg Vendidos", f"{form(t_kg_v, 0)} kg")
         vf3.metric("Kg Enviados", f"{form(t_kg_e, 0)} kg")
-        vf4.metric("Mermas (Kg)", f"{form(t_kg_e - t_kg_v, 0)} kg")
+        
+        # ACTUALIZADO: Mermas con %
+        vf4.metric(
+            label="Mermas (Sobrepeso)", 
+            value=f"{form(porcentaje_merma, 2)}%", 
+            delta=f"{form(mermas_kg, 0)} kg",
+            delta_color="inverse"
+        )
 
-        # RESTAURADO: Precios Medios
         st.markdown("### Precios Medios (€/kg)")
         pm_col1, pm_col2 = st.columns(2)
         pm_col1.metric("P. Medio Venta", f"{form(t_vta/t_kg_v if t_kg_v > 0 else 0, 3)} €/kg")
         pm_col2.metric("P. Medio Compra", f"{form(t_com/t_kg_v if t_kg_v > 0 else 0, 3)} €/kg")
 
-        # RESTAURADO: Desglose Gastos
         st.markdown(f"### Desglose Gastos Almacén ({form(ratio_g_almacen, 3)} €/kg)")
         dg1, dg2, dg3, dg4, dg5 = st.columns(5)
         dg1.metric("Estructura", f"{form(g_est/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
@@ -136,7 +140,7 @@ if df_raw is not None:
             st.plotly_chart(px.bar(df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index(), x='familia', y='pesonetovendido', color='familia'), use_container_width=True)
 
     with tabs[2]:
-        st.markdown("### Reclamaciones)")
+        st.markdown("### Reclamaciones")
         st.metric("Importe Reclamado", f"{form(df_reclamaciones['venta_neta'].sum())} €")
         if not df_reclamaciones.empty:
             df_rec_cli = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index().sort_values('venta_neta', ascending=False)
