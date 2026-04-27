@@ -87,11 +87,9 @@ if df_raw is not None:
     t_vta = df_op['venta_neta'].sum()
     t_com = df_op['importecompra'].sum()
     
-    # Precios medios
     pm_vta = t_vta / t_kg_v if t_kg_v > 0 else 0
     pm_com = t_com / t_kg_v if t_kg_v > 0 else 0
     
-    # Gastos
     sum_g_almacen = df_op[['estruct', 'mano_obra', 'c_envase', 'c_palet', 'cbo']].sum().sum()
     ratio_g_almacen = sum_g_almacen / t_kg_e if t_kg_e > 0 else 0
     
@@ -109,7 +107,6 @@ if df_raw is not None:
     tabs = st.tabs(["RESUMEN DE NEGOCIO", "SEGUNDAS Y TIRADO", "RECLAMACIONES"])
 
     with tabs[0]:
-        # NUEVA SECCIÓN SOLICITADA
         st.markdown("### Volumen y Facturación")
         vf1, vf2, vf3, vf4 = st.columns(4)
         vf1.metric("Facturación", f"{form(t_vta)} €")
@@ -123,7 +120,6 @@ if df_raw is not None:
         pm1.metric("P. Medio Venta", f"{form(pm_vta, 3)} €/kg")
         pm2.metric("P. Medio Compra", f"{form(pm_com, 3)} €/kg")
 
-        # Título dinámico con el total de gastos de almacén
         st.markdown(f"### Desglose Gastos Almacén ({form(ratio_g_almacen, 3)} €/kg)")
         dg1, dg2, dg3, dg4, dg5 = st.columns(5)
         dg1.metric("Estructura", f"{form(df_op['estruct'].sum()/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
@@ -149,12 +145,34 @@ if df_raw is not None:
     with tabs[1]:
         st.markdown("### Análisis de Mermas")
         s1, s2 = st.columns(2)
-        s1.metric("KG Segundas (II)", f"{form(df_seg_tir[df_seg_tir['articulo'].astype(str).str.contains('II', case=False)]['pesonetovendido'].sum(), 0)} kg")
-        s2.metric("KG Tirado", f"{form(df_seg_tir[df_seg_tir['cliente'].astype(str).str.contains('Tirado', case=False)]['pesonetovendido'].sum(), 0)} kg")
+        k_seg = df_seg_tir[df_seg_tir['articulo'].astype(str).str.contains('II', case=False)]['pesonetovendido'].sum()
+        k_tir = df_seg_tir[df_seg_tir['cliente'].astype(str).str.contains('Tirado', case=False)]['pesonetovendido'].sum()
+        s1.metric("KG Segundas (II)", f"{form(k_seg, 0)} kg")
+        s2.metric("KG Tirado", f"{form(k_tir, 0)} kg")
+        
+        # Gráfico de distribución de mermas por familia
+        if not df_seg_tir.empty:
+            st.markdown("### Distribución de Mermas por Familia")
+            df_mermas_fam = df_seg_tir.groupby('familia')['pesonetovendido'].sum().reset_index()
+            fig_mermas = px.bar(df_mermas_fam, x='familia', y='pesonetovendido', color='familia', 
+                               labels={'pesonetovendido': 'Kilos', 'familia': 'Familia'},
+                               color_discrete_sequence=px.colors.qualitative.Prism)
+            st.plotly_chart(fig_mermas, use_container_width=True)
 
     with tabs[2]:
-        st.markdown("### Reclamaciones")
+        st.markdown("### Reclamaciones y Abonos")
         st.metric("Total Reclamado", f"{form(df_reclamaciones['venta_neta'].sum())} €")
+        
+        # Gráfico de reclamaciones por cliente
+        if not df_reclamaciones.empty:
+            st.markdown("### Impacto por Cliente")
+            df_rec_cli = df_reclamaciones.groupby('cliente')['venta_neta'].sum().reset_index()
+            # Ordenamos para mostrar los que más reclaman primero
+            df_rec_cli = df_rec_cli.sort_values('venta_neta', ascending=False)
+            fig_rec = px.bar(df_rec_cli, x='cliente', y='venta_neta', color='cliente',
+                            labels={'venta_neta': 'Importe Reclamado (€)', 'cliente': 'Cliente'},
+                            color_discrete_sequence=px.colors.sequential.Reds_r)
+            st.plotly_chart(fig_rec, use_container_width=True)
 
 else:
     st.error("Archivo no detectado.")
