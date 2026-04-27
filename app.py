@@ -30,11 +30,12 @@ def cargar_datos():
         df = pd.read_excel("datos_acl.xlsx")
         df.columns = [str(c).strip().lower().replace(" ", "_") for c in df.columns]
         
-        # --- LIMPIEZA DE DATOS (EVITA EL TYPEERROR) ---
-        columnas_num = ['mano_obra', 'estruct', 'c_envase', 'c_palet', 'cbo', 'c_bo', 'venta_neta', 'importecompra', 'pesonetoenviado', 'pesonetovendido']
+        # Limpieza forzada de columnas numéricas para evitar TypeErrors
+        columnas_num = ['mano_obra', 'estruct', 'c_envase', 'c_palet', 'cbo', 'c_bo', 
+                        'venta_neta', 'importecompra', 'pesonetoenviado', 'pesonetovendido',
+                        'comision', 'porte_orig', 'porte_dest']
         for col in columnas_num:
             if col in df.columns:
-                # Convertimos a número a la fuerza, lo que no sea número se vuelve NaN (y luego 0)
                 df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
     return None
@@ -48,7 +49,7 @@ if df_raw is not None:
     sel_fam = st.sidebar.multiselect("Familias", sorted(df_raw['familia'].unique()), default=sorted(df_raw['familia'].unique()))
     sel_cli = st.sidebar.multiselect("Clientes", sorted(df_raw['cliente'].unique()), default=sorted(df_raw['cliente'].unique()))
 
-    # Filtro Dinámico
+    # Filtro Dinámico Aplicado
     df_f = df_raw.copy()
     if sel_sem: df_f = df_f[df_f['fecha_semana'].isin(sel_sem)]
     if sel_fam: df_f = df_f[df_f['familia'].isin(sel_fam)]
@@ -59,17 +60,18 @@ if df_raw is not None:
     mask_tirado = df_f['cliente'].astype(str).str.contains("Tirado", case=False)
     mask_segunda = df_f['articulo'].astype(str).str.contains("II", case=False)
 
+    # Segmentación
     df_op = df_f[~mask_rr & ~mask_segunda & ~mask_tirado]
     df_seg_tir = df_f[mask_segunda | mask_tirado]
     df_reclamaciones = df_f[mask_rr & ~mask_tirado]
 
-    # --- CÁLCULOS ---
+    # --- CÁLCULOS SOBRE EL FILTRO ---
     t_kg_e = df_op['pesonetoenviado'].sum()
     t_kg_v = df_op['pesonetovendido'].sum()
     t_vta = df_op['venta_neta'].sum()
     t_com = df_op['importecompra'].sum()
     
-    # Mano de Obra y Gastos (Seguro contra errores)
+    # Gastos Almacén
     g_mo = df_op['mano_obra'].sum()
     g_est = df_op['estruct'].sum()
     g_env = df_op['c_envase'].sum()
@@ -99,6 +101,13 @@ if df_raw is not None:
         vf3.metric("Kg Enviados", f"{form(t_kg_e, 0)} kg")
         vf4.metric("Mermas (Kg)", f"{form(t_kg_e - t_kg_v, 0)} kg")
 
+        # RESTAURADO: Precios Medios
+        st.markdown("### Precios Medios (€/kg)")
+        pm_col1, pm_col2 = st.columns(2)
+        pm_col1.metric("P. Medio Venta", f"{form(t_vta/t_kg_v if t_kg_v > 0 else 0, 3)} €/kg")
+        pm_col2.metric("P. Medio Compra", f"{form(t_com/t_kg_v if t_kg_v > 0 else 0, 3)} €/kg")
+
+        # RESTAURADO: Desglose Gastos
         st.markdown(f"### Desglose Gastos Almacén ({form(ratio_g_almacen, 3)} €/kg)")
         dg1, dg2, dg3, dg4, dg5 = st.columns(5)
         dg1.metric("Estructura", f"{form(g_est/t_kg_e if t_kg_e>0 else 0, 3)} €/kg")
@@ -114,8 +123,6 @@ if df_raw is not None:
             'estruct': 'sum', 'mano_obra': 'sum', 'c_envase': 'sum', 'c_palet': 'sum',
             'comision': 'sum', 'porte_orig': 'sum', 'porte_dest': 'sum'
         }).reset_index()
-        
-        # Gráfico dinámico
         df_sem['gastos'] = df_sem[['importecompra', 'estruct', 'mano_obra', 'c_envase', 'c_palet', 'comision', 'porte_orig', 'porte_dest']].sum(axis=1)
         df_sem['margen_kg'] = (df_sem['venta_neta'] - df_sem['gastos']) / df_sem['pesonetoenviado']
         st.plotly_chart(px.line(df_sem, x='fecha_semana', y='margen_kg', markers=True, color_discrete_sequence=['#2e7d32']), use_container_width=True)
